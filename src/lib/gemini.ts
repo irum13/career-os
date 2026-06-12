@@ -1,7 +1,23 @@
 import type { Item, Profile } from "./types";
 
-const GEMINI_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+
+function geminiErrorMessage(status: number, body: string): string {
+  try {
+    const parsed = JSON.parse(body) as { error?: { message?: string } };
+    const msg = parsed.error?.message ?? "";
+    if (status === 429 || msg.includes("quota")) {
+      return "Gemini free-tier quota exceeded. Wait a minute and try again, or enable billing in Google AI Studio.";
+    }
+    if (status === 400 || status === 401 || status === 403) {
+      return "Gemini API key rejected. Check GEMINI_API_KEY in Vercel and redeploy.";
+    }
+  } catch {
+    // ignore parse errors
+  }
+  return "Brief generation failed. Try again later.";
+}
 
 function buildProfileContext(profile: Profile | null) {
   if (!profile) return "";
@@ -69,8 +85,9 @@ ${newsletters}`;
     });
 
     if (!res.ok) {
-      console.error("Gemini error:", await res.text());
-      return { summary: "Brief generation failed. Try again later.", ideas: [] };
+      const errBody = await res.text();
+      console.error("Gemini error:", errBody);
+      return { summary: geminiErrorMessage(res.status, errBody), ideas: [] };
     }
 
     const data = await res.json();
