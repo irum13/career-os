@@ -69,28 +69,12 @@ export default async function SettingsPage() {
           <BlocklistManager entries={blocklist ?? []} />
         </Card>
 
-        <Card title="Digests & sync">
-          <dl className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <dt className="text-[var(--muted)]">Timezone</dt>
-              <dd>America/Chicago (Houston)</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-[var(--muted)]">Noon digest</dt>
-              <dd>12:00 PM — mail from midnight to noon</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-[var(--muted)]">Evening digest</dt>
-              <dd>12:00 AM — mail from noon to midnight</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-[var(--muted)]">Delivery</dt>
-              <dd>In-app only</dd>
-            </div>
-          </dl>
-          <div className="mt-4">
-            <ManualSyncButton />
-          </div>
+        <Card title="Mail sync">
+          <p className="mb-4 text-sm text-[var(--muted)]">
+            Sync pulls mail from Gmail and Outlook. News sources get full-body reads for AI briefs on
+            the News page.
+          </p>
+          <ManualSyncButton />
         </Card>
       </div>
     </div>

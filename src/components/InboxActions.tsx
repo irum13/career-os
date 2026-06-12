@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { setItemPriority, promoteItem, dismissAllFromSender } from "@/app/actions";
+import { setItemPriority, promoteItem, dismissAllFromSender, addNewsSource } from "@/app/actions";
 import type { ItemPriority } from "@/lib/types";
 
 export function InboxActions({
@@ -56,6 +56,13 @@ export function InboxActions({
       </div>
       {sender && (
         <div className="flex flex-col gap-1 border-t border-[var(--border)] pt-2">
+          <button
+            type="button"
+            onClick={() => run(() => addNewsSource(sender))}
+            className="text-left text-xs text-emerald-700 hover:underline"
+          >
+            Add to News
+          </button>
           <button
             type="button"
             onClick={() => run(() => dismissAllFromSender(sender, false))}

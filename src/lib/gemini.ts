@@ -8,28 +8,55 @@ function buildProfileContext(profile: Profile | null) {
   return `User context: ${profile.status} at ${profile.school}, studying ${profile.program} in ${profile.location}. Career focus: ${profile.career_focus}.`;
 }
 
-export async function summarizeTrending(
+export interface NewsBriefIdea {
+  title: string;
+  description: string;
+}
+
+export async function generateNewsBriefContent(
   items: Item[],
   profile: Profile | null
-): Promise<string> {
+): Promise<{ summary: string; ideas: NewsBriefIdea[] }> {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || items.length === 0) {
-    return items.length === 0
-      ? "No new newsletters or updates in this period."
-      : "Trending updates available — review your inbox highlights below.";
+  const fallback = {
+    summary: "Configure GEMINI_API_KEY to generate AI news briefs.",
+    ideas: [] as NewsBriefIdea[],
+  };
+
+  if (!apiKey) return fallback;
+  if (!items.length) {
+    return { summary: "No newsletter content to summarize yet.", ideas: [] };
   }
 
-  const itemSummaries = items
-    .slice(0, 20)
-    .map((i) => `- ${i.title}${i.sender ? ` (${i.sender})` : ""}`)
-    .join("\n");
+  const newsletters = items
+    .map((item, index) => {
+      const body = item.body_text || item.summary || "";
+      const trimmed = body.length > 6000 ? `${body.slice(0, 6000)}…` : body;
+      return `--- Newsletter ${index + 1} ---
+From: ${item.sender ?? "unknown"}
+Subject: ${item.title}
+Date: ${item.received_at}
+
+${trimmed}`;
+    })
+    .join("\n\n");
 
   const prompt = `${buildProfileContext(profile)}
 
-Summarize what's trending across these email/newsletter items in exactly 2 short lines (max 40 words total). Focus on AI/tech news relevant to a data science graduate student.
+You are helping a graduate student stay current on AI and tech news from their curated newsletters.
 
-Items:
-${itemSummaries}`;
+Read the full newsletter content below and respond in valid JSON only (no markdown fences):
+{
+  "summary": "3 to 7 short lines summarizing the most important AI/tech developments across these newsletters. Be specific, not generic.",
+  "ideas": [
+    { "title": "short project or skill idea", "description": "1-2 sentences on how to use this news for portfolio, internships, or career growth" }
+  ]
+}
+
+Include 2 to 3 ideas in the ideas array. Ground everything only in the newsletters provided.
+
+Newsletters:
+${newsletters}`;
 
   try {
     const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
@@ -37,23 +64,37 @@ ${itemSummaries}`;
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { maxOutputTokens: 120, temperature: 0.4 },
+        generationConfig: { maxOutputTokens: 768, temperature: 0.4 },
       }),
     });
 
     if (!res.ok) {
       console.error("Gemini error:", await res.text());
-      return "Trending summary unavailable — check inbox highlights.";
+      return { summary: "Brief generation failed. Try again later.", ideas: [] };
     }
 
     const data = await res.json();
-    return (
-      data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ??
-      "Trending summary unavailable."
-    );
+    const raw = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      return { summary: raw || "Brief generation failed.", ideas: [] };
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]) as {
+      summary?: string;
+      ideas?: NewsBriefIdea[];
+    };
+
+    return {
+      summary: parsed.summary?.trim() || "Summary unavailable.",
+      ideas: (parsed.ideas ?? []).slice(0, 3).map((idea) => ({
+        title: idea.title?.trim() || "Idea",
+        description: idea.description?.trim() || "",
+      })),
+    };
   } catch (err) {
     console.error("Gemini fetch failed:", err);
-    return "Trending summary unavailable — check inbox highlights.";
+    return { summary: "Brief generation failed. Try again later.", ideas: [] };
   }
 }
 

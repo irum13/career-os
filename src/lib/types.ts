@@ -1,7 +1,10 @@
 export type ItemPriority = "unclassified" | "high" | "medium" | "low" | "dismissed";
 export type ItemCategory = "newsletter" | "job_alert" | "ai_news" | "other" | "alerts";
 export type SourceType = "gmail" | "outlook" | "manual" | "rss" | "reddit" | "github";
-export type DigestType = "am" | "pm" | "weekly" | "monthly";
+export interface NewsBriefIdea {
+  title: string;
+  description: string;
+}
 export type JobStatus = "interested" | "applied" | "interview" | "offer" | "rejected" | "withdrawn";
 export type ScholarshipStatus = "interested" | "applied" | "awarded" | "rejected" | "withdrawn";
 export type ActionStatus = "drafting" | "pending_approval" | "approved" | "executed" | "cancelled";
@@ -21,8 +24,10 @@ export interface Item {
   id: string;
   user_id: string;
   source_type: SourceType;
+  external_id?: string | null;
   title: string;
   summary: string | null;
+  body_text?: string | null;
   url: string | null;
   sender: string | null;
   folder: string | null;
@@ -31,15 +36,12 @@ export interface Item {
   received_at: string;
 }
 
-export interface Digest {
+export interface NewsBrief {
   id: string;
-  digest_type: DigestType;
-  period_start: string;
-  period_end: string;
-  trending_summary: string | null;
-  content_json: Record<string, unknown>;
-  read_at: string | null;
-  created_at: string;
+  summary_text: string;
+  ideas_json: NewsBriefIdea[];
+  item_ids: string[];
+  generated_at: string;
 }
 
 export interface Deadline {

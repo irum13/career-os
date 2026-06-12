@@ -1,3 +1,4 @@
+import { extractPlainBodyFromGmailPayload } from "./body";
 import { getGmailMessageUrl } from "./urls";
 
 export interface GmailMessage {
@@ -81,6 +82,20 @@ export async function fetchGmailMessages(
   }
 
   return messages;
+}
+
+export async function fetchGmailMessageBody(
+  accessToken: string,
+  messageId: string
+): Promise<string | null> {
+  const msgRes = await fetch(
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}?format=full`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  if (!msgRes.ok) return null;
+
+  const msg = await msgRes.json();
+  return extractPlainBodyFromGmailPayload(msg.payload);
 }
 
 export { classifyMailMessage as classifyGmailMessage } from "./classify";

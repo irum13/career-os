@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export function ManualSyncButton() {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -12,7 +14,15 @@ export function ManualSyncButton() {
     try {
       const res = await fetch("/api/sync/mail", { method: "POST" });
       const data = await res.json();
-      setMessage(res.ok ? `Synced ${data.synced ?? 0} items` : data.error || "Sync failed");
+      if (!res.ok) {
+        setMessage(data.error || "Sync failed");
+      } else {
+        const parts = [`Synced ${data.synced ?? 0} items`];
+        if (data.syncedNewsCount) parts.push(`${data.syncedNewsCount} from news sources`);
+        if (data.briefGenerated) parts.push("brief generated");
+        setMessage(parts.join(" · "));
+        router.refresh();
+      }
     } catch {
       setMessage("Sync failed");
     }

@@ -6,11 +6,15 @@ import { draftActionContent } from "@/lib/gemini";
 import type { CaptureType, ItemPriority } from "@/lib/types";
 import { extractEmail, inferBlocklistType } from "@/lib/mail/blocklist";
 import type { BlocklistMatchType } from "@/lib/mail/blocklist";
+import { inferSenderMatchType } from "@/lib/mail/sender-match";
+import { generateNewsBrief } from "@/lib/news-brief";
 
 function revalidateInbox() {
   revalidatePath("/inbox");
   revalidatePath("/");
   revalidatePath("/settings");
+  revalidatePath("/news");
+  revalidatePath("/notifications");
 }
 
 async function getUserId() {
@@ -378,15 +382,58 @@ export async function updateProfile(formData: FormData) {
   revalidatePath("/settings");
 }
 
-export async function markDigestRead(digestId: string) {
+export async function addNewsSource(sender: string, label?: string) {
   const { supabase, userId } = await getUserId();
-  await supabase
-    .from("digests")
-    .update({ read_at: new Date().toISOString() })
-    .eq("id", digestId)
-    .eq("user_id", userId);
-  revalidatePath("/");
-  revalidatePath("/notifications");
+  const email = extractEmail(sender);
+  const pattern = (email ?? sender).toLowerCase().trim();
+  if (!pattern) return;
+
+  const match_type = inferSenderMatchType(pattern);
+  await supabase.from("news_sources").upsert(
+    {
+      user_id: userId,
+      pattern,
+      match_type,
+      label: label || sender.slice(0, 80),
+    },
+    { onConflict: "user_id,pattern,match_type" }
+  );
+  revalidateInbox();
+}
+
+export async function addNewsSourceFromForm(formData: FormData) {
+  const pattern = (formData.get("pattern") as string)?.trim();
+  if (!pattern) return;
+
+  const rawType = formData.get("match_type") as string;
+  const matchType =
+    rawType === "email" || rawType === "domain" || rawType === "contains"
+      ? rawType
+      : inferSenderMatchType(pattern);
+
+  const { supabase, userId } = await getUserId();
+  await supabase.from("news_sources").upsert(
+    {
+      user_id: userId,
+      pattern: pattern.toLowerCase(),
+      match_type: matchType,
+      label: (formData.get("label") as string) || pattern,
+    },
+    { onConflict: "user_id,pattern,match_type" }
+  );
+  revalidateInbox();
+}
+
+export async function removeNewsSource(id: string) {
+  const { supabase, userId } = await getUserId();
+  await supabase.from("news_sources").delete().eq("id", id).eq("user_id", userId);
+  revalidateInbox();
+}
+
+export async function generateNewsBriefAction() {
+  const { userId } = await getUserId();
+  await generateNewsBrief(userId);
+  revalidateInbox();
 }
 
 export async function markAlertRead(alertId: string) {

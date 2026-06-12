@@ -14,11 +14,13 @@ import {
   Bell,
   Settings,
   Rss,
+  Newspaper,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const nav = [
   { href: "/", label: "Home", icon: Home },
+  { href: "/news", label: "News", icon: Newspaper },
   { href: "/notifications", label: "Notifications", icon: Bell },
   { href: "/inbox", label: "Inbox", icon: Inbox },
   { href: "/jobs", label: "Jobs", icon: Briefcase },

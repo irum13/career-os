@@ -91,9 +91,13 @@ export default async function SourcesPage({
           )}
         </Card>
 
-        <Card title="Websites & channels">
+        <Card title="Newsletter sources">
           <p className="text-sm text-[var(--muted)]">
-            RSS and custom website monitoring are not available yet.
+            Curate AI and tech newsletter senders on the{" "}
+            <Link href="/news" className="text-[var(--accent)] hover:underline">
+              News page
+            </Link>
+            . This page is for connecting mail accounts only.
           </p>
         </Card>
       </div>

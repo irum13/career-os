@@ -1,6 +1,7 @@
 import { createServiceClient } from "@/lib/supabase/server";
 import {
   fetchGmailMessages,
+  fetchGmailMessageBody,
   classifyGmailMessage,
   refreshGmailToken,
 } from "./gmail";
@@ -12,6 +13,8 @@ import {
 import { subHours } from "date-fns";
 import { getGmailMessageUrl, getOutlookMessageUrl } from "./urls";
 import { senderMatchesBlocklist, type BlocklistEntry } from "./blocklist";
+import { senderMatchesNewsSources, type NewsSourceEntry } from "./news-sources";
+import { generateNewsBrief, shouldAutoGenerateBrief } from "@/lib/news-brief";
 
 async function getValidAccessToken(account: {
   id: string;
@@ -57,16 +60,23 @@ export async function syncMailForUser(userId: string, sinceHours = 12) {
     .select("*")
     .eq("user_id", userId);
 
-  if (!accounts?.length) return { synced: 0 };
+  if (!accounts?.length) return { synced: 0, briefGenerated: false };
 
   const { data: blocklist } = await supabase
     .from("sender_blocklist")
     .select("pattern, match_type")
     .eq("user_id", userId);
 
+  const { data: newsSources } = await supabase
+    .from("news_sources")
+    .select("pattern, match_type")
+    .eq("user_id", userId);
+
   const blocklistEntries = (blocklist ?? []) as BlocklistEntry[];
+  const newsSourceEntries = (newsSources ?? []) as NewsSourceEntry[];
 
   let synced = 0;
+  let syncedNewsCount = 0;
 
   for (const account of accounts) {
     const token = await getValidAccessToken(account);
@@ -95,6 +105,7 @@ export async function syncMailForUser(userId: string, sinceHours = 12) {
           : ("webLink" in msg && msg.webLink) || getOutlookMessageUrl(msg.id);
 
       const blocked = senderMatchesBlocklist(msg.from, blocklistEntries);
+      const isNewsSource = senderMatchesNewsSources(msg.from, newsSourceEntries);
 
       const row: Record<string, unknown> = {
         user_id: userId,
@@ -111,11 +122,19 @@ export async function syncMailForUser(userId: string, sinceHours = 12) {
       };
       if (blocked) row.priority = "dismissed";
 
+      if (isNewsSource && account.provider === "gmail") {
+        const body = await fetchGmailMessageBody(token, msg.id);
+        if (body) row.body_text = body;
+      }
+
       const { error } = await supabase.from("items").upsert(row, {
         onConflict: "user_id,source_type,external_id",
       });
 
-      if (!error) synced++;
+      if (!error) {
+        synced++;
+        if (isNewsSource) syncedNewsCount++;
+      }
     }
 
     await supabase
@@ -124,7 +143,13 @@ export async function syncMailForUser(userId: string, sinceHours = 12) {
       .eq("id", account.id);
   }
 
-  return { synced };
+  let briefGenerated = false;
+  if (await shouldAutoGenerateBrief(userId, syncedNewsCount)) {
+    const brief = await generateNewsBrief(userId);
+    briefGenerated = !!brief;
+  }
+
+  return { synced, syncedNewsCount, briefGenerated };
 }
 
 export async function syncMailForAllUsers(sinceHours = 12) {
